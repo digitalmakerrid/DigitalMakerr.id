@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigitalMaker.id - WebApp Creator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK (Versi Compat untuk HTML Murni) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <!-- Konfigurasi Tema Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: { extend: { borderRadius: { '4xl': '2rem', '5xl': '2.5rem' }, fontFamily: { sans: ['Inter', 'sans-serif'] } } }
+        }
+    </script>
+
+    <style>
+        body {
+            margin: 0; min-height: 100vh;
+            color: #ffffff; overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* Slate 950 base */
+        }
+
+        .bg-static-layer {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none;
+            background-color: #020617;
+            /* Tech Grid + Teal Top Glow */
+            background-image: 
+                radial-gradient(circle at 50% -20%, rgba(20, 184, 166, 0.25) 0%, transparent 60%),
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+            background-position: center top, center center, center center;
+        }
+
+        .glass { 
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); 
+            border: 1px solid rgba(20, 184, 166, 0.2); box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.4); 
+        }
+        .glass-hover {
+            will-change: transform; 
+        }
+        .glass-hover:hover { 
+            background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(20, 184, 166, 0.5); 
+            transform: translateY(-4px); box-shadow: 0 10px 30px 0 rgba(20, 184, 166, 0.15); 
+        }
+        .glass-active { 
+            background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(20, 184, 166, 0.8); box-shadow: 0 0 20px rgba(20, 184, 166, 0.2); 
+            border-left: 4px solid #14b8a6;
+        }
+        
+        .transition-all { 
+            transition-property: transform, background-color, border-color, box-shadow, opacity; 
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); 
+            transition-duration: 300ms; 
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.4); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.7); }
+
+        .loader { border: 4px solid rgba(20,184,166,0.1); border-left-color: #14b8a6; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- LAYER BACKGROUND -->
+    <div class="bg-static-layer"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#020617]/80 backdrop-blur-3xl transition-all duration-500">
+        <div class="loader mb-4"></div>
+        <p class="text-white/70 tracking-widest text-sm animate-pulse mt-4 font-semibold tracking-[0.2em]">SINKRONISASI DATA...</p>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="glassModal" class="fixed inset-0 z-40 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm opacity-0 transition-all duration-300">
+        <div class="glass rounded-2xl p-8 w-full max-w-lg transform scale-95 transition-all duration-300 max-h-[90vh] overflow-y-auto border-t-4 border-teal-500" id="modalContent"></div>
+    </div>
+
+    <!-- NAVBAR SPA -->
+    <nav class="fixed top-0 w-full z-30 pt-6 px-4 md:px-12 pointer-events-none" id="navbar">
+        <div class="glass max-w-7xl mx-auto rounded-xl px-6 py-4 flex justify-between items-center pointer-events-auto shadow-lg">
+            
+            <div class="flex items-center cursor-pointer hover:opacity-80 transition-all" onclick="if(isLoggedIn) navigate('home')">
+                <!-- FIX: Sejajarkan ".id" dengan flex dan items-baseline -->
+                <div class="flex items-baseline gap-1">
+                    <span class="text-xl md:text-2xl font-bold tracking-tight text-white leading-none">
+                        Digital<span class="text-teal-400">Maker</span>
+                    </span>
+                    <span class="text-sm md:text-base text-cyan-400 font-bold tracking-widest uppercase">.id</span>
+                </div>
+            </div>
+            
+            <button id="mobile-menu-btn" class="hidden md:hidden text-teal-400 text-2xl" onclick="toggleMobileMenu()"><i class="bi bi-list"></i></button>
+
+            <div class="hidden space-x-2 items-center" id="nav-menus">
+                <button onclick="navigate('home')" class="nav-btn px-5 py-2.5 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-all">Beranda</button>
+                <button onclick="navigate('admin')" id="navAdminBtn" class="nav-btn px-5 py-2.5 rounded-lg text-sm font-medium text-teal-300 hover:text-white transition-all bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500/30 hidden">Admin Panel</button>
+                
+                <div class="w-[1px] h-6 bg-white/20 mx-2 hidden" id="navDivider"></div>
+                <button onclick="doLogout()" id="navLogoutBtn" class="hidden px-5 py-2.5 rounded-lg text-sm font-bold text-red-400 hover:text-red-300 transition-all hover:bg-red-500/10"><i class="bi bi-box-arrow-right mr-1"></i> Logout</button>
+            </div>
+        </div>
+        
+        <div id="mobileMenu" class="hidden md:hidden glass mt-4 rounded-xl p-4 flex-col space-y-2 pointer-events-auto shadow-lg border-t-2 border-teal-500">
+             <button onclick="navigate('home'); toggleMobileMenu()" class="w-full text-left px-4 py-3 rounded-lg glass-hover font-medium">Beranda</button>
+             <button onclick="navigate('admin'); toggleMobileMenu()" id="navMobileAdminBtn" class="w-full text-left px-4 py-3 rounded-lg glass-hover font-medium text-teal-400 hidden">Admin Panel</button>
+             <div class="h-[1px] w-full bg-white/10 my-1 hidden" id="navMobileDivider"></div>
+             <button onclick="doLogout(); toggleMobileMenu()" id="navMobileLogoutBtn" class="hidden w-full text-left px-4 py-3 rounded-lg glass-hover font-bold text-red-400"><i class="bi bi-box-arrow-right mr-2"></i> Logout</button>
+        </div>
+    </nav>
+
+    <!-- KONTEN UTAMA SPA -->
+    <main class="pt-36 pb-20 px-4 md:px-12 max-w-7xl mx-auto">
+        
+        <!-- VIEW: LOGIN PAGE (GATEKEEPER) -->
+        <section id="view-login" class="spa-view hidden animate-[fadeIn_0.5s_ease-out]">
+            <div class="min-h-[65vh] flex flex-col justify-center items-center">
+                <div class="glass p-8 md:p-12 rounded-2xl w-full max-w-md relative z-10 shadow-2xl border-t-4 border-teal-500">
+                    <div class="text-left mb-8">
+                        <div class="flex items-baseline gap-1 mb-2">
+                            <h2 class="text-3xl font-bold">Digital<span class="text-teal-400">Maker</span></h2>
+                            <span class="text-cyan-400 font-bold tracking-widest text-sm uppercase">.id</span>
+                        </div>
+                        <p class="text-white/60 text-sm leading-relaxed border-l-2 border-teal-500/50 pl-3">Autentikasi diperlukan untuk mengakses portal developer.</p>
+                    </div>
+                    <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+                        <div class="mb-5">
+                            <label class="block text-sm font-medium text-white/70 mb-2">Email Akses</label>
+                            <div class="relative">
+                                <i class="bi bi-envelope absolute left-4 top-1/2 transform -translate-y-1/2 text-white/40"></i>
+                                <input type="email" id="loginEmail" required class="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-12 pr-4 text-white focus:outline-none focus:border-teal-500 focus:bg-black/60 transition-all shadow-inner" placeholder="developer@email.com">
+                            </div>
+                        </div>
+                        <div class="mb-8">
+                            <label class="block text-sm font-medium text-white/70 mb-2">Kata Sandi</label>
+                            <div class="relative">
+                                <i class="bi bi-key absolute left-4 top-1/2 transform -translate-y-1/2 text-white/40"></i>
+                                <input type="password" id="loginPass" required class="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-12 pr-4 text-white focus:outline-none focus:border-teal-500 focus:bg-black/60 transition-all shadow-inner" placeholder="••••••••">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full glass glass-hover py-3.5 rounded-lg font-bold bg-teal-600/20 text-teal-300 border border-teal-500/50 flex justify-center items-center transition-all shadow-lg shadow-teal-500/20">
+                            <i class="bi bi-box-arrow-in-right mr-2 text-lg"></i> Akses Platform
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: BERANDA -->
+        <section id="view-home" class="spa-view hidden animate-[fadeIn_0.5s_ease-out]">
+            <div class="text-left mt-10 mb-20 max-w-3xl">
+                <div class="inline-block glass px-4 py-1.5 rounded-md text-xs font-semibold text-teal-400 tracking-widest mb-6 border-l-2 border-teal-500 uppercase">
+                    <i class="bi bi-terminal mr-1"></i> Developer Environment
+                </div>
+                <h1 id="hero-title" class="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-teal-200">
+                    Ciptakan WebApp.<br>Skalakan Ide Anda.
+                </h1>
+                <p id="hero-desc" class="text-lg text-white/60 mb-10 border-l-2 border-white/10 pl-4 max-w-2xl">
+                    Pusat sumber daya digital eksklusif untuk para Maker. Pelajari cara membangun produk digital yang mutakhir.
+                </p>
+                <div class="flex flex-col sm:flex-row justify-start gap-4">
+                    <button onclick="document.getElementById('kategori-section').scrollIntoView({behavior:'smooth'})" class="glass glass-hover px-8 py-3.5 rounded-lg font-semibold text-teal-300 bg-teal-500/10 border-teal-500/30 transition-all flex items-center justify-center shadow-lg shadow-teal-500/10">
+                        Jelajahi Modul <i class="bi bi-arrow-down ml-2"></i>
+                    </button>
+                    <button id="btn-community" onclick="window.open('#', '_blank')" class="glass glass-hover px-8 py-3.5 rounded-lg font-semibold text-white transition-all flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/20">
+                        <i class="bi bi-people-fill mr-2"></i> Komunitas Maker
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fitur Pencarian -->
+            <div class="max-w-full mb-12 relative">
+                <i class="bi bi-search absolute left-6 top-1/2 transform -translate-y-1/2 text-white/40 text-lg"></i>
+                <input type="text" id="searchInput" onkeyup="filterCourses()" placeholder="Cari Modul atau Resource..." class="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-16 pr-6 text-white focus:outline-none focus:border-teal-500 transition-all shadow-inner text-lg">
+            </div>
+
+            <div class="flex items-center gap-3 mb-8">
+                <div class="w-2 h-8 bg-teal-500 rounded-sm"></div>
+                <h2 id="kategori-section" class="text-2xl font-bold">Direktori Modul</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="courseGrid"></div>
+        </section>
+
+        <!-- VIEW: DETAIL MODUL -->
+        <section id="view-course-detail" class="spa-view hidden animate-[fadeIn_0.5s_ease-out]">
+            <button onclick="navigate('home')" class="glass glass-hover px-5 py-2 rounded-lg mb-8 text-sm flex items-center w-max">
+                <i class="bi bi-arrow-left mr-2"></i> Direktori Utama
+            </button>
+
+            <div class="glass rounded-2xl p-8 md:p-12 mb-8 relative overflow-hidden shadow-2xl border-l-4 border-teal-500">
+                <div class="absolute -bottom-10 -right-10 text-[180px] text-teal-500/10" id="detail-icon"><i class="bi bi-braces"></i></div>
+                <h1 class="text-4xl md:text-5xl font-bold mb-4 relative z-10" id="detail-title">Judul Modul</h1>
+                <p class="text-white/60 text-lg max-w-3xl relative z-10 border-l-2 border-white/10 pl-4" id="detail-desc">Deskripsi modul akan muncul di sini.</p>
+            </div>
+
+            <div class="flex flex-wrap overflow-x-auto no-scrollbar gap-2 mb-8" id="detail-tabs">
+                <button onclick="switchTab('video')" id="tab-video" class="detail-tab-btn px-6 py-3 rounded-lg text-sm font-medium transition-all glass-active border-transparent">Video Materi</button>
+                <button onclick="switchTab('tools')" id="tab-tools" class="detail-tab-btn px-6 py-3 rounded-lg text-sm font-medium transition-all glass border-transparent">Akses Tools</button>
+                <button onclick="switchTab('docs')" id="tab-docs" class="detail-tab-btn px-6 py-3 rounded-lg text-sm font-medium transition-all glass border-transparent">Dokumentasi</button>
+                <button onclick="switchTab('bonus')" id="tab-bonus" class="detail-tab-btn px-6 py-3 rounded-lg text-sm font-medium transition-all glass border-transparent">Resources</button>
+            </div>
+
+            <div class="glass rounded-2xl p-6 md:p-10 min-h-[400px]">
+                <div id="content-video" class="tab-content block">
+                    <h3 class="text-xl font-bold mb-6 flex items-center border-b border-white/10 pb-4"><i class="bi bi-play-circle text-teal-500 mr-3"></i> Index Video</h3>
+                    <div class="space-y-4" id="videoList"></div>
+                </div>
+                <div id="content-tools" class="tab-content hidden">
+                    <h3 class="text-xl font-bold mb-6 flex items-center border-b border-white/10 pb-4"><i class="bi bi-terminal text-cyan-500 mr-3"></i> Integrasi Tools</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="toolsList"></div>
+                </div>
+                <div id="content-docs" class="tab-content hidden">
+                    <h3 class="text-xl font-bold mb-6 flex items-center border-b border-white/10 pb-4"><i class="bi bi-file-code text-yellow-500 mr-3"></i> Dokumen & Script</h3>
+                    <div class="space-y-4" id="docsList"></div>
+                </div>
+                <div id="content-bonus" class="tab-content hidden">
+                    <h3 class="text-xl font-bold mb-6 flex items-center border-b border-white/10 pb-4"><i class="bi bi-box-seam text-green-500 mr-3"></i> Ekstra Resources</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="bonusList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: ADMIN PANEL -->
+        <section id="view-admin" class="spa-view hidden animate-[fadeIn_0.5s_ease-out]">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 border-b border-white/10 pb-6">
+                <div>
+                    <h1 class="text-4xl font-bold mb-2 flex items-center gap-3"><i class="bi bi-speedometer2 text-teal-500"></i> Admin Panel</h1>
+                    <p class="text-white/60">Sistem manajemen konten dan pengguna.</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="manageUsers()" class="glass glass-hover px-4 py-2 rounded-lg font-semibold bg-white/5 border border-white/10 text-sm">
+                        <i class="bi bi-people"></i> <span class="hidden md:inline ml-2">Pengguna</span>
+                    </button>
+                    <button onclick="openConfigModal()" class="glass glass-hover px-4 py-2 rounded-lg font-semibold bg-white/5 border border-white/10 text-sm">
+                        <i class="bi bi-gear"></i> <span class="hidden md:inline ml-2">Konfigurasi</span>
+                    </button>
+                    <button onclick="openAdminModal()" class="glass glass-hover px-4 py-2 rounded-lg font-semibold bg-teal-500/20 text-teal-300 border-teal-500/50 text-sm">
+                        <i class="bi bi-plus-lg"></i> <span class="hidden md:inline ml-2">Kategori Baru</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass rounded-xl overflow-hidden shadow-2xl border border-white/10">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-black/40 border-b border-white/10">
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">ID</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Ikon</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Kategori</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Deskripsi</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: ADMIN MODULES (KELOLA MATERI) -->
+        <section id="view-admin-modules" class="spa-view hidden animate-[fadeIn_0.5s_ease-out]">
+            <button onclick="navigate('admin')" class="glass glass-hover px-5 py-2 rounded-lg mb-8 text-sm flex items-center w-max">
+                <i class="bi bi-arrow-left mr-2"></i> Kembali
+            </button>
+
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 border-b border-white/10 pb-6">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-bold mb-2 flex items-center gap-3"><i class="bi bi-folder-fill text-cyan-500"></i> <span id="admin-module-title">Kelola Materi</span></h1>
+                    <p class="text-white/60 border-l-2 border-white/10 pl-3">Database konten pada kategori terpilih.</p>
+                </div>
+                <button onclick="openModuleModal()" class="glass glass-hover px-6 py-2.5 rounded-lg font-semibold bg-cyan-500/20 text-cyan-300 border-cyan-500/50 text-sm">
+                    <i class="bi bi-plus-lg mr-2"></i> Modul Baru
+                </button>
+            </div>
+
+            <div class="glass rounded-xl overflow-hidden shadow-2xl border border-white/10">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-black/40 border-b border-white/10">
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Format</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Judul Modul</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Konten / Link</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminModuleTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: ADMIN USERS (KELOLA PENGGUNA) -->
+        <section id="view-admin-users" class="spa-view hidden animate-[fadeIn_0.5s_ease-out]">
+            <button onclick="navigate('admin')" class="glass glass-hover px-5 py-2 rounded-lg mb-8 text-sm flex items-center w-max">
+                <i class="bi bi-arrow-left mr-2"></i> Kembali
+            </button>
+
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 border-b border-white/10 pb-6">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-bold mb-2 flex items-center gap-3"><i class="bi bi-people-fill text-green-500"></i> Kelola Akses</h1>
+                    <p class="text-white/60 border-l-2 border-white/10 pl-3">Manajemen akun dan hak akses pengguna.</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="downloadCsvTemplate()" class="glass glass-hover px-4 py-2 rounded-lg font-semibold bg-white/5 border-white/10 text-sm">
+                        <i class="bi bi-download mr-1"></i> Template CSV
+                    </button>
+                    <button onclick="openImportCsvModal()" class="glass glass-hover px-4 py-2 rounded-lg font-semibold bg-white/5 border-white/10 text-sm">
+                        <i class="bi bi-upload mr-1"></i> Batch Import
+                    </button>
+                    <button onclick="openUserModal()" class="glass glass-hover px-4 py-2 rounded-lg font-semibold bg-green-500/20 text-green-300 border-green-500/50 text-sm">
+                        <i class="bi bi-person-plus mr-1"></i> User Baru
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass rounded-xl overflow-hidden shadow-2xl border border-white/10">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-black/40 border-b border-white/10">
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Nama / Identifier</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Email</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Kredensial</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase">Otorisasi</th>
+                                <th class="p-4 font-semibold text-white/70 text-xs tracking-wider uppercase text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // =========================================================================
+        // 1. INISIALISASI FIREBASE (Konfigurasi Anda)
+        // =========================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyB8Kw3Hmzz2dybuCh0vOESgo-z8PYE5doU",
+            authDomain: "digitalmakerid-165bb.firebaseapp.com",
+            projectId: "digitalmakerid-165bb",
+            storageBucket: "digitalmakerid-165bb.firebasestorage.app",
+            messagingSenderId: "519878740830",
+            appId: "1:519878740830:web:417ac83d061217e3e6ddcf"
+        };
+
+        // Inisialisasi Firebase & Firestore
+        let app, firestore;
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            firestore = firebase.firestore();
+        } catch(e) {
+            console.error("Firebase Error:", e);
+        }
+
+        let db = { config: [], courses: [], modules: [], users: [] };
+        let currentCourseId = null;
+        let currentAdminCourseId = null;
+        let isLoggedIn = false;
+        let currentUserRole = 'guest';
+
+        // =========================================================================
+        // 2. FUNGSI LOAD DATA & AUTO SEED
+        // =========================================================================
+        
+        // FUNGSI BARU: Menyuntikkan data template jika database kosong
+        async function seedDatabase() {
+            document.querySelector('#loadingOverlay p').innerText = "MENYIAPKAN DATA AWAL...";
+            const batch = firestore.batch();
+            
+            const defaultConfigs = [
+                { Key: "heroTitle", Value: "Ciptakan WebApp.<br>Skalakan Ide Anda." },
+                { Key: "heroDesc", Value: "Pusat sumber daya digital eksklusif untuk para Maker. Pelajari cara membangun produk digital." },
+                { Key: "communityLink", Value: "https://t.me/komunitas_digitalmaker" },
+                { Key: "appFont", Value: "Inter" }
+            ];
+            const defaultUsers = [
+                { ID: "USR-ADMIN", Role: "admin", Name: "Administrator", Email: "admin@gmail.com", Password: "admin123" },
+                { ID: "USR-STUDENT", Role: "student", Name: "Member Area", Email: "siswa@gmail.com", Password: "siswa123" }
+            ];
+            const defaultCourses = [
+                { ID: "CRS-1", Title: "Membuat Web Aplikasi", Description: "Pelajari cara membuat web aplikasi modern dari nol.", Icon: "bi-laptop" },
+                { ID: "CRS-2", Title: "Database & Cloud", Description: "Pemahaman struktur data dan integrasi cloud Firebase.", Icon: "bi-cloud-arrow-up" }
+            ];
+            const defaultModules = [
+                { ID: "M-1", CourseID: "CRS-1", TabType: "video", Title: "1. Intro Web Development", Content: "Video pengenalan dasar-dasar web dev.", Link: "https://youtu.be/dQw4w9WgXcQ" }
+            ];
+
+            defaultConfigs.forEach(d => batch.set(firestore.collection('Config').doc(d.Key), d));
+            defaultUsers.forEach(d => batch.set(firestore.collection('Users').doc(d.ID), d));
+            defaultCourses.forEach(d => batch.set(firestore.collection('Courses').doc(d.ID), d));
+            defaultModules.forEach(d => batch.set(firestore.collection('Modules').doc(d.ID), d));
+
+            await batch.commit();
+            document.querySelector('#loadingOverlay p').innerText = "SINKRONISASI DATA...";
+        }
+
+        async function loadData() {
+            startLoading();
+            if (!firestore) return;
+
+            try {
+                let [configSnap, coursesSnap, modulesSnap, usersSnap] = await Promise.all([
+                    firestore.collection('Config').get(),
+                    firestore.collection('Courses').get(),
+                    firestore.collection('Modules').get(),
+                    firestore.collection('Users').get()
+                ]);
+
+                // JIKA DATABASE KOSONG, INJEKSI DATA DEFAULT
+                if (configSnap.empty && coursesSnap.empty && usersSnap.empty) {
+                    await seedDatabase();
+                    // Ambil ulang datanya setelah disuntik
+                    [configSnap, coursesSnap, modulesSnap, usersSnap] = await Promise.all([
+                        firestore.collection('Config').get(),
+                        firestore.collection('Courses').get(),
+                        firestore.collection('Modules').get(),
+                        firestore.collection('Users').get()
+                    ]);
+                }
+
+                db.config = configSnap.docs.map(doc => doc.data());
+                db.courses = coursesSnap.docs.map(doc => doc.data());
+                db.modules = modulesSnap.docs.map(doc => doc.data());
+                db.users = usersSnap.docs.map(doc => doc.data());
+
+                renderUI(); 
+                checkAuth();
+                navigate(isLoggedIn ? 'home' : 'login'); 
+            } catch(e) {
+                Swal.fire('Koneksi Error', e.message, 'error');
+            } finally {
+                endLoading();
+            }
+        }
+
+        // =========================================================================
+        // 3. FUNGSI CRUD KE FIRESTORE (Menyimpan dan Menghapus Data)
+        // =========================================================================
+        
+        async function saveConfigToFirestore(configsToSave) {
+            startLoading();
+            try {
+                const batch = firestore.batch();
+                configsToSave.forEach(config => {
+                    const docRef = firestore.collection('Config').doc(config.Key);
+                    batch.set(docRef, config);
+                    const idx = db.config.findIndex(c => c.Key === config.Key);
+                    if(idx > -1) db.config[idx] = config; else db.config.push(config);
+                });
+                
+                await batch.commit();
+                closeModal(); renderUI(); endLoading();
+                Swal.fire({ title: 'Tersimpan!', text: 'Pengaturan berhasil diupdate di Firestore.', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6' });
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menyimpan', e.message, 'error');
+            }
+        }
+
+        async function saveCourseToFirestore(dataObj) {
+            startLoading();
+            const isNew = !dataObj.ID;
+            if (isNew) dataObj.ID = 'CRS-' + Date.now();
+
+            try {
+                await firestore.collection('Courses').doc(dataObj.ID).set(dataObj);
+                if (!isNew) { const idx = db.courses.findIndex(c => c.ID === dataObj.ID); db.courses[idx] = dataObj; } 
+                else { db.courses.push(dataObj); }
+                
+                closeModal(); renderUI(); endLoading();
+                Swal.fire({ title: 'Tersimpan!', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6' });
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menyimpan', e.message, 'error');
+            }
+        }
+
+        async function deleteCourseFromFirestore(id) {
+            startLoading();
+            try {
+                await firestore.collection('Courses').doc(id).delete();
+                db.courses = db.courses.filter(c => c.ID !== id);
+                renderUI(); endLoading();
+                Swal.fire({title: 'Dihapus!', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6'});
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menghapus', e.message, 'error');
+            }
+        }
+
+        async function saveModuleToFirestore(dataObj) {
+            startLoading();
+            const isNew = !dataObj.ID || dataObj.ID === '';
+            if (isNew) dataObj.ID = 'MOD-' + Date.now();
+
+            try {
+                await firestore.collection('Modules').doc(dataObj.ID).set(dataObj);
+                if (!isNew) { const idx = db.modules.findIndex(m => m.ID === dataObj.ID); db.modules[idx] = dataObj; } 
+                else { db.modules.push(dataObj); }
+                
+                closeModal(); renderAdminModuleTable(); endLoading();
+                Swal.fire({ title: 'Tersimpan!', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6' });
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menyimpan', e.message, 'error');
+            }
+        }
+
+        async function deleteModuleFromFirestore(id) {
+            startLoading();
+            try {
+                await firestore.collection('Modules').doc(id).delete();
+                db.modules = db.modules.filter(m => m.ID !== id);
+                renderAdminModuleTable(); endLoading();
+                Swal.fire({title: 'Dihapus!', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6'});
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menghapus', e.message, 'error');
+            }
+        }
+
+        async function saveUserToFirestore(dataObj) {
+            startLoading();
+            const isNew = !dataObj.ID;
+            if (isNew) dataObj.ID = 'USR-' + Date.now();
+
+            try {
+                await firestore.collection('Users').doc(dataObj.ID).set(dataObj);
+                if (!isNew) { const idx = db.users.findIndex(u => u.ID === dataObj.ID); db.users[idx] = dataObj; } 
+                else { db.users.push(dataObj); }
+                
+                closeModal(); renderAdminUsersTable(); endLoading();
+                Swal.fire({ title: 'Tersimpan!', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6' });
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menyimpan', e.message, 'error');
+            }
+        }
+
+        async function deleteUserFromFirestore(id) {
+            startLoading();
+            try {
+                await firestore.collection('Users').doc(id).delete();
+                db.users = db.users.filter(u => u.ID !== id);
+                renderAdminUsersTable(); endLoading();
+                Swal.fire({title: 'Dihapus!', icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6'});
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Menghapus', e.message, 'error');
+            }
+        }
+
+        async function saveMultipleUsersToFirestore(newUsers) {
+            startLoading();
+            try {
+                const batch = firestore.batch();
+                newUsers.forEach(nu => {
+                    nu.ID = 'USR-' + Math.floor(Math.random() * 1000000) + Date.now().toString().slice(-4);
+                    const docRef = firestore.collection('Users').doc(nu.ID);
+                    batch.set(docRef, nu);
+                    db.users.push(nu);
+                });
+                
+                await batch.commit();
+                closeModal(); renderAdminUsersTable(); endLoading();
+                Swal.fire({ title: 'Import Selesai!', text: `${newUsers.length} data berhasil ditambahkan.`, icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6' });
+            } catch(e) {
+                endLoading(); Swal.fire('Gagal Import', e.message, 'error');
+            }
+        }
+
+
+        // =========================================================================
+        // KODE UTILITY DAN UI STANDAR
+        // =========================================================================
+
+        window.onload = () => {
+            const savedSession = localStorage.getItem('digitalmaker_session');
+            if (savedSession) {
+                const session = JSON.parse(savedSession);
+                isLoggedIn = true;
+                currentUserRole = session.role;
+            }
+            loadData();
+        };
+
+        function escapeHtml(text) {
+            if (text == null) return '';
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function getSafeYouTubeEmbedUrl(url) {
+            if (!url) return null;
+            let videoId = null;
+            try {
+                if (url.includes('youtube.com/watch')) { videoId = new URL(url).searchParams.get('v'); } 
+                else if (url.includes('youtu.be/')) { videoId = url.split('youtu.be/')[1].split('?')[0]; } 
+                else if (url.includes('youtube.com/embed/')) { videoId = url.split('youtube.com/embed/')[1].split('?')[0]; }
+            } catch(e) {}
+            return videoId ? 'https://www.youtube.com/embed/' + videoId : null;
+        }
+
+        function checkAuth() {
+            const navMenus = document.getElementById('nav-menus');
+            const mobMenuBtn = document.getElementById('mobile-menu-btn');
+            
+            if (!isLoggedIn) {
+                navMenus.classList.remove('md:flex');
+                navMenus.classList.add('hidden');
+                mobMenuBtn.classList.add('hidden');
+            } else {
+                navMenus.classList.add('hidden', 'md:flex');
+                mobMenuBtn.classList.remove('hidden');
+                
+                const deskAdminBtn = document.getElementById('navAdminBtn');
+                const mobAdminBtn = document.getElementById('navMobileAdminBtn');
+                const navDivider = document.getElementById('navDivider');
+                const deskLogoutBtn = document.getElementById('navLogoutBtn');
+                const mobLogoutBtn = document.getElementById('navMobileLogoutBtn');
+                const navMobDivider = document.getElementById('navMobileDivider');
+                
+                deskLogoutBtn.classList.remove('hidden');
+                mobLogoutBtn.classList.remove('hidden');
+                navDivider.classList.remove('hidden');
+                if(navMobDivider) navMobDivider.classList.remove('hidden');
+
+                if (currentUserRole === 'admin') {
+                    deskAdminBtn.classList.remove('hidden'); 
+                    mobAdminBtn.classList.remove('hidden');
+                } else {
+                    deskAdminBtn.classList.add('hidden'); 
+                    mobAdminBtn.classList.add('hidden');
+                    if (!document.getElementById('view-admin').classList.contains('hidden') || 
+                        !document.getElementById('view-admin-modules').classList.contains('hidden') ||
+                        !document.getElementById('view-admin-users').classList.contains('hidden')) {
+                        navigate('home');
+                    }
+                }
+            }
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const pass = document.getElementById('loginPass').value;
+            
+            let user = null;
+            if (db.users && db.users.length > 0) {
+                user = db.users.find(u => u.Email === email && u.Password === pass);
+            }
+            
+            if (!user) {
+                if (email === 'admin@gmail.com' && pass === 'admin123') { user = { Role: 'admin', Name: 'Administrator', Email: email }; } 
+                else if (email === 'siswa@gmail.com' && pass === 'siswa123') { user = { Role: 'student', Name: 'Siswa / Member', Email: email }; }
+            }
+
+            if (user) {
+                isLoggedIn = true;
+                currentUserRole = user.Role;
+                localStorage.setItem('digitalmaker_session', JSON.stringify({ role: user.Role, email: user.Email }));
+                
+                checkAuth(); navigate('home');
+                Swal.fire({title: 'Login Berhasil!', text: `Selamat datang, ${user.Name}!`, icon: 'success', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6', timer: 1500, showConfirmButton: false});
+                document.getElementById('loginForm').reset();
+            } else {
+                Swal.fire({title: 'Akses Ditolak!', text: 'Email atau Kata Sandi salah.', icon: 'error', background: '#020617', color: '#fff', confirmButtonColor: '#14b8a6'});
+            }
+        }
+
+        function doLogout() {
+            Swal.fire({
+                title: 'Konfirmasi Keluar', text: 'Sesi anda akan diakhiri.', icon: 'question', background: '#020617', color: '#fff',
+                showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Logout', cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    isLoggedIn = false; currentUserRole = 'guest'; localStorage.removeItem('digitalmaker_session');
+                    checkAuth(); navigate('login');
+                }
+            });
+        }
+
+        function startLoading() { document.getElementById('loadingOverlay').classList.remove('hidden', 'opacity-0'); }
+        function endLoading() { const overlay = document.getElementById('loadingOverlay'); overlay.classList.add('opacity-0'); setTimeout(() => overlay.classList.add('hidden'), 500); }
+
+        function renderUI() { renderConfig(); renderCourses(); renderAdminTable(); }
+
+        function renderConfig() {
+            if(!db.config) db.config = [];
+            const getVal = (key, def) => { const item = db.config.find(c => c.Key === key); return item && item.Value ? item.Value : def; };
+            
+            document.getElementById('hero-title').innerHTML = getVal('heroTitle', 'Ciptakan WebApp.<br>Skalakan Ide Anda.');
+            document.getElementById('hero-desc').innerText = getVal('heroDesc', 'Pusat sumber daya digital eksklusif untuk para Maker. Pelajari cara membangun produk digital.');
+            
+            const commLink = getVal('communityLink', '#'); 
+            const btnComm = document.getElementById('btn-community');
+            if(commLink && commLink !== '#' && commLink.trim() !== '') {
+                btnComm.classList.remove('hidden'); btnComm.setAttribute('onclick', `window.open('${commLink}', '_blank')`);
+            } else { btnComm.classList.add('hidden'); }
+
+            const appFont = getVal('appFont', 'Inter');
+            document.body.style.fontFamily = `"${appFont}", sans-serif`;
+            if (appFont !== 'Inter' && !document.getElementById(`font-${appFont}`)) {
+                const link = document.createElement('link');
+                link.id = `font-${appFont}`;
+                link.href = `https://fonts.googleapis.com/css2?family=${appFont.replace(' ', '+')}:wght@300;400;600;800&display=swap`;
+                link.rel = 'stylesheet'; document.head.appendChild(link);
+            }
+        }
+
+        function navigate(viewName, param = null) {
+            if (!isLoggedIn && viewName !== 'login') { viewName = 'login'; }
+            document.querySelectorAll('.spa-view').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => { btn.classList.remove('bg-white/20', 'text-white'); btn.classList.add('text-white/70'); });
+
+            if (viewName === 'login') { document.getElementById('view-login').classList.remove('hidden'); } 
+            else if (viewName === 'home') { document.getElementById('view-home').classList.remove('hidden'); document.querySelectorAll('.nav-btn')[0].classList.add('bg-white/20', 'text-white'); } 
+            else if (viewName === 'admin') { document.getElementById('view-admin').classList.remove('hidden'); document.querySelectorAll('.nav-btn')[1].classList.add('bg-white/20', 'text-white'); } 
+            else if (viewName === 'admin-modules') { document.getElementById('view-admin-modules').classList.remove('hidden'); document.querySelectorAll('.nav-btn')[1].classList.add('bg-white/20', 'text-white'); } 
+            else if (viewName === 'admin-users') { document.getElementById('view-admin-users').classList.remove('hidden'); document.querySelectorAll('.nav-btn')[1].classList.add('bg-white/20', 'text-white'); } 
+            else if (viewName === 'course') { document.getElementById('view-course-detail').classList.remove('hidden'); loadCourseDetail(param); }
+            window.scrollTo(0,0);
+        }
+
+        function toggleMobileMenu() { const menu = document.getElementById('mobileMenu'); menu.classList.toggle('hidden'); menu.classList.toggle('flex'); }
+
+        function filterCourses() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.querySelectorAll('.course-card');
+            cards.forEach(card => {
+                const title = card.getAttribute('data-title').toLowerCase();
+                const desc = card.getAttribute('data-desc').toLowerCase();
+                if (title.includes(query) || desc.includes(query)) { card.style.display = 'flex'; } else { card.style.display = 'none'; }
+            });
+        }
+
+        function renderCourses() {
+            const grid = document.getElementById('courseGrid'); let htmlStr = '';
+            db.courses.forEach(course => {
+                htmlStr += `
+                    <div onclick="navigate('course', '${course.ID}')" data-title="${escapeHtml(course.Title)}" data-desc="${escapeHtml(course.Description)}" class="course-card glass glass-hover p-6 rounded-xl cursor-pointer group flex flex-col h-full border border-white/5">
+                        <div class="w-12 h-12 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xl mb-4 group-hover:bg-teal-500/20 group-hover:text-teal-300 group-hover:border-teal-500/30 transition-all shadow-md">
+                            <i class="bi ${course.Icon}"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2">${escapeHtml(course.Title)}</h3>
+                        <p class="text-white/60 text-sm flex-grow leading-relaxed">${escapeHtml(course.Description)}</p>
+                        <div class="mt-6 pt-4 border-t border-white/10 text-xs font-semibold tracking-widest text-teal-500/50 group-hover:text-teal-400 flex justify-between items-center transition-all uppercase">
+                            Buka Direktori <i class="bi bi-arrow-right"></i>
+                        </div>
+                    </div>`;
+            });
+            grid.innerHTML = htmlStr;
+        }
+
+        function loadCourseDetail(courseId) {
+            currentCourseId = courseId;
+            const course = db.courses.find(c => c.ID === courseId);
+            if(!course) return;
+            document.getElementById('detail-title').innerText = course.Title; document.getElementById('detail-desc').innerText = course.Description; document.getElementById('detail-icon').innerHTML = `<i class="bi ${course.Icon}"></i>`;
+            switchTab('video');
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.detail-tab-btn').forEach(btn => { btn.classList.remove('glass-active'); btn.classList.add('glass'); });
+            document.getElementById(`tab-${tabName}`).classList.add('glass-active'); document.getElementById(`tab-${tabName}`).classList.remove('glass');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); document.getElementById(`content-${tabName}`).classList.remove('hidden');
+            renderTabContent(tabName);
+        }
+
+        function renderTabContent(tabName) {
+            const modules = db.modules.filter(m => m.CourseID === currentCourseId && m.TabType === tabName);
+            let htmlStr = '';
+            
+            if (tabName === 'video') {
+                const list = document.getElementById('videoList');
+                if(modules.length === 0) htmlStr = '<p class="text-white/50 text-sm italic">Data belum tersedia.</p>';
+                modules.forEach((mod, idx) => {
+                    let embedUrl = getSafeYouTubeEmbedUrl(mod.Link);
+                    let mediaContent = '';
+                    if (embedUrl) { mediaContent = `<div class="w-full aspect-video rounded-lg overflow-hidden mb-5 border border-white/10 bg-black/50 shadow-lg"><iframe class="w-full h-full" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>`; } 
+                    else if (mod.Link) { mediaContent = `<a href="${escapeHtml(mod.Link)}" target="_blank" class="px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg text-sm font-semibold transition-all inline-flex items-center mb-5"><i class="bi bi-box-arrow-up-right mr-2"></i> Buka Eksternal Link</a><br>`; }
+                    htmlStr += `
+                        <div class="glass rounded-xl overflow-hidden mb-3 border border-white/5">
+                            <button class="w-full px-5 py-4 text-left flex justify-between items-center hover:bg-white/5 transition-all" onclick="toggleAccordion('acc-${idx}')">
+                                <span class="font-semibold flex items-center text-base"><i class="bi bi-play-circle text-teal-400 mr-3 text-xl"></i> ${escapeHtml(mod.Title)}</span>
+                                <i class="bi bi-chevron-down text-white/40 transition-transform duration-300 text-sm" id="icon-acc-${idx}"></i>
+                            </button>
+                            <div id="acc-${idx}" class="accordion-content bg-black/40">
+                                <div class="p-5 text-white/70 text-sm border-t border-white/5">${mediaContent}<p class="leading-relaxed">${escapeHtml(mod.Content)}</p></div>
+                            </div>
+                        </div>`;
+                });
+                list.innerHTML = htmlStr;
+            } else if (tabName === 'tools') {
+                const list = document.getElementById('toolsList');
+                if(modules.length === 0) htmlStr = '<p class="text-white/50 text-sm italic">Data belum tersedia.</p>';
+                modules.forEach(mod => {
+                    let btnAction = mod.Link ? `<a href="${escapeHtml(mod.Link)}" target="_blank" class="text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-4 py-2 rounded hover:bg-cyan-500/20 transition-all inline-block mt-2">Integrasikan</a>` : `<button onclick="simulateToolAccess('${escapeHtml(mod.Title)}')" class="text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-4 py-2 rounded hover:bg-cyan-500/20 transition-all mt-2">Akses CLI</button>`;
+                    htmlStr += `<div class="glass glass-hover p-5 rounded-xl flex items-start gap-4 border border-white/5"><div class="w-10 h-10 rounded-lg bg-black/50 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shrink-0 text-lg"><i class="bi bi-terminal"></i></div><div class="flex-grow"><h4 class="font-bold mb-1 text-base">${escapeHtml(mod.Title)}</h4><p class="text-xs text-white/50 mb-2 leading-relaxed">${escapeHtml(mod.Content)}</p>${btnAction}</div></div>`;
+                });
+                list.innerHTML = htmlStr;
+            } else if (tabName === 'docs') {
+                const list = document.getElementById('docsList');
+                if(modules.length === 0) htmlStr = '<p class="text-white/50 text-sm italic">Data belum tersedia.</p>';
+                modules.forEach(mod => {
+                    let btnAction = mod.Link ? `<a href="${escapeHtml(mod.Link)}" target="_blank" class="w-8 h-8 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition-all inline-flex items-center justify-center text-white text-sm"><i class="bi bi-download"></i></a>` : `<button onclick="simulateToolAccess('Download ${escapeHtml(mod.Title)}')" class="w-8 h-8 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center text-sm"><i class="bi bi-download"></i></button>`;
+                    htmlStr += `<div class="glass p-4 rounded-xl flex justify-between items-center hover:bg-white/5 transition-all border border-white/5"><div class="flex items-center gap-3"><i class="bi bi-file-earmark-code text-yellow-500 text-2xl"></i><span class="font-medium text-sm">${escapeHtml(mod.Title)}</span></div>${btnAction}</div>`;
+                });
+                list.innerHTML = htmlStr;
+            } else if (tabName === 'bonus') {
+                const list = document.getElementById('bonusList');
+                if(modules.length === 0) htmlStr = '<p class="text-white/50 text-sm italic">Data belum tersedia.</p>';
+                modules.forEach(mod => {
+                    let btnAction = mod.Link ? `<a href="${escapeHtml(mod.Link)}" target="_blank" class="text-xs bg-green-500/10 px-4 py-2 rounded hover:bg-green-500/20 border border-green-500/30 transition-all inline-block text-green-300 mt-2">Ekstrak</a>` : `<button onclick="simulateToolAccess('Bonus ${escapeHtml(mod.Title)}')" class="text-xs bg-green-500/10 px-4 py-2 rounded hover:bg-green-500/20 border border-green-500/30 transition-all text-green-300 mt-2">Ekstrak</button>`;
+                    htmlStr += `<div class="glass glass-hover p-5 rounded-xl flex items-start gap-4 border border-white/5"><div class="w-10 h-10 rounded-lg bg-black/50 border border-green-500/30 text-green-400 flex items-center justify-center shrink-0 text-lg"><i class="bi bi-box-seam"></i></div><div class="flex-grow"><h4 class="font-bold mb-1 text-base">${escapeHtml(mod.Title)}</h4><p class="text-xs text-white/50 mb-2 leading-relaxed">${escapeHtml(mod.Content)}</p>${btnAction}</div></div>`;
+                });
+                list.innerHTML = htmlStr;
+            }
+        }
+
+        function toggleAccordion(id) {
+            const content = document.getElementById(id); const icon = document.getElementById(`icon-${id}`);
+            document.querySelectorAll('.accordion-content').forEach(el => { if(el.id !== id) { el.style.maxHeight = null; document.getElementById(`icon-${el.id}`).style.transform = "rotate(0deg)"; } });
+            if (content.style.maxHeight) { content.style.maxHeight = null; icon.style.transform = "rotate(0deg)"; } else { content.style.maxHeight = content.scrollHeight + "px"; icon.style.transform = "rotate(180deg)"; }
+        }
+
+        function renderAdminTable() {
+            const tbody = document.getElementById('adminTableBody'); let htmlStr = '';
+            db.courses.forEach(c => {
+                htmlStr += `
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition-all">
+                        <td class="p-4 text-xs text-white/50 font-mono">${c.ID}</td>
+                        <td class="p-4"><div class="w-8 h-8 bg-black/40 border border-white/10 rounded flex items-center justify-center text-teal-400"><i class="bi ${c.Icon} text-sm"></i></div></td>
+                        <td class="p-4 font-bold text-sm">${escapeHtml(c.Title)}</td>
+                        <td class="p-4 text-xs text-white/60 truncate max-w-xs">${escapeHtml(c.Description)}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="manageModules('${c.ID}')" class="text-cyan-400 hover:text-white hover:bg-cyan-500 mr-2 px-3 py-1.5 rounded bg-cyan-400/10 border border-cyan-400/20 transition-all font-medium text-xs"><i class="bi bi-folder2-open mr-1"></i> Buka</button>
+                            <button onclick="editCourse('${c.ID}')" class="text-teal-400 hover:text-white hover:bg-teal-500 mr-2 px-2 py-1.5 rounded bg-teal-400/10 border border-teal-400/20 transition-all text-xs"><i class="bi bi-pencil"></i></button>
+                            <button onclick="deleteCourse('${c.ID}')" class="text-red-400 hover:text-white hover:bg-red-500 px-2 py-1.5 rounded bg-red-400/10 border border-red-400/20 transition-all text-xs"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+            tbody.innerHTML = htmlStr;
+        }
+
+        function openConfigModal() {
+            const getVal = (key, def) => { const item = db.config.find(c => c.Key === key); return item && item.Value ? item.Value : def; };
+            const title = getVal('heroTitle', 'Ciptakan WebApp.<br>Skalakan Ide Anda.'); const desc = getVal('heroDesc', 'Pusat sumber daya digital eksklusif untuk para Maker.'); const link = getVal('communityLink', ''); const font = getVal('appFont', 'Inter');
+
+            document.getElementById('modalContent').innerHTML = `
+                <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                    <h3 class="text-2xl font-bold">Pengaturan Umum Web</h3>
+                    <button onclick="closeModal()" class="text-white/50 hover:text-white bg-white/5 rounded-full w-8 h-8 flex items-center justify-center transition-all"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <form id="configForm">
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Judul Utama (Beranda)</label><input type="text" id="confTitle" value="${escapeHtml(title)}" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:bg-white/5 transition-all shadow-inner"></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Deskripsi Beranda</label><textarea id="confDesc" rows="2" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:bg-white/5 transition-all shadow-inner">${escapeHtml(desc)}</textarea></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Link Komunitas (Telegram/WA)</label><input type="text" id="confLink" value="${escapeHtml(link)}" placeholder="https://..." class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:bg-white/5 transition-all shadow-inner"></div>
+                    <div class="mb-8"><label class="block text-sm text-white/70 mb-2 font-medium">Font Aplikasi (Gaya Tulisan)</label><select id="confFont" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:bg-white/5 transition-all shadow-inner"><option value="Inter" ${font === 'Inter' ? 'selected' : ''} class="bg-[#0f172a]">Inter (Bawaan)</option><option value="Poppins" ${font === 'Poppins' ? 'selected' : ''} class="bg-[#0f172a]">Poppins (Modern)</option><option value="Montserrat" ${font === 'Montserrat' ? 'selected' : ''} class="bg-[#0f172a]">Montserrat (Tegas)</option><option value="Roboto" ${font === 'Roboto' ? 'selected' : ''} class="bg-[#0f172a]">Roboto (Klasik)</option></select></div>
+                    <button type="button" onclick="saveConfig(event)" class="w-full glass glass-hover py-4 rounded-xl font-bold bg-blue-600/20 text-blue-300 border border-blue-500/50 flex justify-center items-center transition-all shadow-lg shadow-blue-500/20"><i class="bi bi-save mr-2"></i> Simpan Semua Pengaturan</button>
+                </form>
+            `;
+            showModal();
+        }
+
+        function saveConfig(e) {
+            if(e) e.preventDefault();
+            const configsToSave = [
+                { ID: 'heroTitle', Key: 'heroTitle', Value: document.getElementById('confTitle').value },
+                { ID: 'heroDesc', Key: 'heroDesc', Value: document.getElementById('confDesc').value },
+                { ID: 'communityLink', Key: 'communityLink', Value: document.getElementById('confLink').value },
+                { ID: 'appFont', Key: 'appFont', Value: document.getElementById('confFont').value }
+            ];
+            saveConfigToFirestore(configsToSave);
+        }
+
+        function openAdminModal(courseId = null) {
+            let course = { ID: '', Title: '', Description: '', Icon: 'bi-box' };
+            if (courseId) course = db.courses.find(c => c.ID === courseId);
+            document.getElementById('modalContent').innerHTML = `
+                <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                    <h3 class="text-2xl font-bold">${courseId ? 'Edit Kategori Modul' : 'Tambah Kategori Modul'}</h3>
+                    <button onclick="closeModal()" class="text-white/50 hover:text-white bg-white/5 w-8 h-8 flex items-center justify-center rounded-full"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <form id="courseForm">
+                    <input type="hidden" id="formId" value="${escapeHtml(course.ID)}">
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Judul Kategori</label><input type="text" id="formTitle" value="${escapeHtml(course.Title)}" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-teal-500 focus:bg-white/5 transition-all shadow-inner"></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Deskripsi Singkat</label><textarea id="formDesc" rows="3" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-teal-500 focus:bg-white/5 transition-all shadow-inner">${escapeHtml(course.Description)}</textarea></div>
+                    <div class="mb-8"><label class="block text-sm text-white/70 mb-2 font-medium">Class Icon (Bootstrap Icons)</label><input type="text" id="formIcon" value="${escapeHtml(course.Icon)}" placeholder="bi-laptop" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-teal-500 focus:bg-white/5 transition-all shadow-inner"></div>
+                    <button type="button" onclick="saveCourse(event)" class="w-full glass glass-hover py-4 rounded-xl font-bold bg-teal-600/20 text-teal-300 border border-teal-500/50 flex justify-center items-center transition-all shadow-lg shadow-teal-500/20"><i class="bi bi-save mr-2"></i> ${courseId ? 'Update Data' : 'Simpan Kategori Baru'}</button>
+                </form>
+            `;
+            showModal();
+        }
+
+        function saveCourse(e) {
+            if(e) e.preventDefault();
+            const title = document.getElementById('formTitle').value;
+            if(!title || title.trim() === '') { Swal.fire('Oops!', 'Judul kategori wajib diisi!', 'warning'); return; }
+            
+            const dataObj = {
+                ID: document.getElementById('formId').value, Title: title,
+                Description: document.getElementById('formDesc').value, Icon: document.getElementById('formIcon').value || 'bi-box'
+            };
+            saveCourseToFirestore(dataObj);
+        }
+
+        function editCourse(id) { openAdminModal(id); }
+        function deleteCourse(id) {
+            Swal.fire({ title: 'Hapus Kategori?', text: 'Materi di dalamnya tetap ada di DB namun tidak akan tampil.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus!', background: '#020617', color: '#fff' })
+            .then((result) => {
+                if (result.isConfirmed) { deleteCourseFromFirestore(id); }
+            });
+        }
+
+        function manageModules(courseId) {
+            currentAdminCourseId = courseId;
+            const course = db.courses.find(c => c.ID === courseId);
+            document.getElementById('admin-module-title').innerText = `Materi: ${course.Title}`;
+            renderAdminModuleTable(); navigate('admin-modules');
+        }
+
+        function renderAdminModuleTable() {
+            const tbody = document.getElementById('adminModuleTableBody'); let htmlStr = '';
+            const modules = db.modules.filter(m => m.CourseID === currentAdminCourseId);
+            
+            if(modules.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-white/50 bg-white/5 border-t border-white/5">Belum ada materi untuk kategori ini.</td></tr>`; return; }
+
+            modules.forEach(m => {
+                let typeBadge = m.TabType === 'video' ? '<span class="bg-teal-500/10 text-teal-400 border border-teal-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider"><i class="bi bi-play-circle mr-1"></i> Video</span>' : 
+                               (m.TabType === 'tools' ? '<span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider"><i class="bi bi-terminal mr-1"></i> Tools</span>' : 
+                               (m.TabType === 'docs' ? '<span class="bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider"><i class="bi bi-file-code mr-1"></i> Docs</span>' : 
+                               '<span class="bg-green-500/10 text-green-400 border border-green-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider"><i class="bi bi-box-seam mr-1"></i> Bonus</span>'));
+                htmlStr += `
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition-all">
+                        <td class="p-4">${typeBadge}</td>
+                        <td class="p-4 font-bold text-sm">${escapeHtml(m.Title)}</td>
+                        <td class="p-4 text-xs text-white/60 truncate max-w-xs">${escapeHtml(m.Content)} ${m.Link ? `<br><span class="text-cyan-400 text-[10px] mt-1 font-semibold inline-block"><i class="bi bi-link-45deg"></i> Linked</span>` : ''}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="editModule('${m.ID}')" class="text-teal-400 hover:text-white hover:bg-teal-500 mr-2 px-2 py-1.5 rounded bg-teal-400/10 border border-teal-400/20 transition-all text-xs"><i class="bi bi-pencil"></i></button>
+                            <button onclick="deleteModule('${m.ID}')" class="text-red-400 hover:text-white hover:bg-red-500 px-2 py-1.5 rounded bg-red-400/10 border border-red-400/20 transition-all text-xs"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+            tbody.innerHTML = htmlStr;
+        }
+
+        function openModuleModal(moduleId = null) {
+            let mod = { ID: '', CourseID: currentAdminCourseId, TabType: 'video', Title: '', Content: '', Link: '' };
+            if (moduleId) mod = db.modules.find(m => m.ID === moduleId) || mod;
+            document.getElementById('modalContent').innerHTML = `
+                <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                    <h3 class="text-2xl font-bold">${moduleId ? 'Edit Materi' : 'Tambah Materi Baru'}</h3>
+                    <button onclick="closeModal()" class="text-white/50 hover:text-white bg-white/5 rounded-full w-8 h-8 flex justify-center items-center"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <form id="moduleForm">
+                    <input type="hidden" id="formModId" value="${escapeHtml(mod.ID)}">
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Tipe Materi</label><select id="formModTab" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition-all shadow-inner"><option value="video" ${mod.TabType === 'video' ? 'selected' : ''} class="bg-[#0f172a]">🎥 Video Materi (YouTube URL)</option><option value="tools" ${mod.TabType === 'tools' ? 'selected' : ''} class="bg-[#0f172a]">🛠️ Akses Tools (Link Web)</option><option value="docs" ${mod.TabType === 'docs' ? 'selected' : ''} class="bg-[#0f172a]">📖 E-Book / Dokumen (Drive Link)</option><option value="bonus" ${mod.TabType === 'bonus' ? 'selected' : ''} class="bg-[#0f172a]">🎁 Bonus Spesial</option></select></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Judul Materi / Modul</label><input type="text" id="formModTitle" value="${escapeHtml(mod.Title)}" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition-all shadow-inner"></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Deskripsi Singkat atau Catatan</label><textarea id="formModContent" rows="3" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition-all shadow-inner">${escapeHtml(mod.Content)}</textarea></div>
+                    <div class="mb-8"><label class="block text-sm text-white/70 mb-2 font-medium">Link / URL <span class="text-white/40 font-normal">(Untuk Video Embed atau Tautan Akses)</span></label><input type="text" id="formModLink" value="${escapeHtml(mod.Link)}" placeholder="Misal: https://youtu.be/..." class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500 transition-all shadow-inner"></div>
+                    <button type="button" onclick="saveModule(event)" class="w-full glass glass-hover py-4 rounded-xl font-bold bg-cyan-600/20 text-cyan-300 border border-cyan-500/50 flex justify-center items-center transition-all shadow-lg shadow-cyan-500/20"><i class="bi bi-save mr-2"></i> ${moduleId ? 'Update Materi' : 'Simpan Materi'}</button>
+                </form>
+            `;
+            showModal();
+        }
+
+        function saveModule(e) {
+            if(e) e.preventDefault();
+            const title = document.getElementById('formModTitle').value;
+            if(!title || title.trim() === '') { Swal.fire('Oops', 'Judul materi wajib diisi!', 'warning'); return; }
+
+            const dataObj = {
+                ID: document.getElementById('formModId').value, CourseID: currentAdminCourseId,
+                TabType: document.getElementById('formModTab').value, Title: title,
+                Content: document.getElementById('formModContent').value, Link: document.getElementById('formModLink').value
+            };
+            saveModuleToFirestore(dataObj);
+        }
+
+        function editModule(id) { openModuleModal(id); }
+        function deleteModule(id) {
+            Swal.fire({ title: 'Hapus Materi ini?', text: 'Data tidak dapat dikembalikan!', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus!', background: '#020617', color: '#fff' })
+            .then((result) => {
+                if (result.isConfirmed) { deleteModuleFromFirestore(id); }
+            });
+        }
+
+        function showModal() { const modal = document.getElementById('glassModal'); modal.classList.remove('hidden'); setTimeout(() => { modal.classList.remove('opacity-0'); document.getElementById('modalContent').classList.remove('scale-95'); }, 10); }
+        function closeModal() { const modal = document.getElementById('glassModal'); modal.classList.add('opacity-0'); document.getElementById('modalContent').classList.add('scale-95'); setTimeout(() => modal.classList.add('hidden'), 300); }
+        function simulateToolAccess(toolName) {
+            document.getElementById('modalContent').innerHTML = `
+                <div class="text-center pb-4"><div class="w-16 h-16 bg-cyan-500/10 text-cyan-400 rounded-lg flex items-center justify-center mx-auto mb-6 text-3xl border border-cyan-500/30 shadow-lg"><i class="bi bi-terminal"></i></div><h3 class="text-xl font-bold mb-2">Akses ${toolName}</h3><p class="text-white/60 text-sm mb-8 leading-relaxed">Instruksi atau skrip integrasi tidak memiliki Tautan/Link tujuan aktif.<br>Hubungi Administrator untuk menyematkan resource.</p></div>
+                <button onclick="closeModal()" class="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold py-3 rounded-lg transition-all">Tutup Terminal</button>
+            `;
+            showModal();
+        }
+
+        function manageUsers() { renderAdminUsersTable(); navigate('admin-users'); }
+
+        function renderAdminUsersTable() {
+            const tbody = document.getElementById('adminUsersTableBody'); let htmlStr = '';
+            if(db.users.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-white/50 bg-white/5 border-t border-white/5">Belum ada data pengguna.</td></tr>`; return; }
+
+            db.users.forEach(u => {
+                let roleBadge = u.Role === 'admin' ? '<span class="bg-red-500/10 text-red-400 border border-red-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Admin</span>' : '<span class="bg-green-500/10 text-green-400 border border-green-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">User</span>';
+                htmlStr += `
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition-all">
+                        <td class="p-4 font-bold text-sm">${escapeHtml(u.Name)}</td>
+                        <td class="p-4 text-xs text-white/80">${escapeHtml(u.Email)}</td>
+                        <td class="p-4 text-xs text-white/50 font-mono">${escapeHtml(u.Password)}</td>
+                        <td class="p-4">${roleBadge}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="editUser('${u.ID}')" class="text-teal-400 hover:text-white hover:bg-teal-500 mr-2 px-2 py-1.5 rounded bg-teal-400/10 border border-teal-400/20 transition-all text-xs"><i class="bi bi-pencil"></i></button>
+                            <button onclick="deleteUser('${u.ID}')" class="text-red-400 hover:text-white hover:bg-red-500 px-2 py-1.5 rounded bg-red-400/10 border border-red-400/20 transition-all text-xs"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+            tbody.innerHTML = htmlStr;
+        }
+
+        function openUserModal(userId = null) {
+            let user = { ID: '', Name: '', Email: '', Password: '', Role: 'student' };
+            if (userId) user = db.users.find(u => u.ID === userId) || user;
+            document.getElementById('modalContent').innerHTML = `
+                <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                    <h3 class="text-2xl font-bold">${userId ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h3>
+                    <button onclick="closeModal()" class="text-white/50 hover:text-white bg-white/5 rounded-full w-8 h-8 flex justify-center items-center"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <form id="userForm">
+                    <input type="hidden" id="formUserId" value="${escapeHtml(user.ID)}">
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Nama Lengkap</label><input type="text" id="formUserName" value="${escapeHtml(user.Name)}" required class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-green-500 transition-all shadow-inner"></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Email Akses</label><input type="email" id="formUserEmail" value="${escapeHtml(user.Email)}" required class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-green-500 transition-all shadow-inner"></div>
+                    <div class="mb-4"><label class="block text-sm text-white/70 mb-2 font-medium">Password Akses</label><input type="text" id="formUserPass" value="${escapeHtml(user.Password)}" required class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-green-500 transition-all shadow-inner"></div>
+                    <div class="mb-8"><label class="block text-sm text-white/70 mb-2 font-medium">Hak Akses (Role)</label><select id="formUserRole" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-green-500 transition-all shadow-inner"><option value="student" ${user.Role === 'student' ? 'selected' : ''} class="bg-[#0f172a]">Siswa / Member Biasa</option><option value="admin" ${user.Role === 'admin' ? 'selected' : ''} class="bg-[#0f172a]">Administrator</option></select></div>
+                    <button type="button" onclick="saveUser(event)" class="w-full glass glass-hover py-4 rounded-xl font-bold bg-green-600/20 text-green-300 border border-green-500/50 flex justify-center items-center transition-all shadow-lg shadow-green-500/20"><i class="bi bi-save mr-2"></i> ${userId ? 'Update Pengguna' : 'Simpan Pengguna'}</button>
+                </form>
+            `;
+            showModal();
+        }
+
+        function saveUser(e) {
+            if(e) e.preventDefault();
+            const name = document.getElementById('formUserName').value; const email = document.getElementById('formUserEmail').value; const pass = document.getElementById('formUserPass').value;
+            if(!name || !email || !pass) { Swal.fire('Oops', 'Semua kolom wajib diisi!', 'warning'); return; }
+
+            const dataObj = { ID: document.getElementById('formUserId').value, Name: name, Email: email, Password: pass, Role: document.getElementById('formUserRole').value };
+            saveUserToFirestore(dataObj);
+        }
+
+        function editUser(id) { openUserModal(id); }
+        function deleteUser(id) {
+            Swal.fire({ title: 'Hapus Pengguna ini?', text: 'Siswa tidak akan bisa login lagi.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus!', background: '#020617', color: '#fff' })
+            .then((result) => {
+                if (result.isConfirmed) { deleteUserFromFirestore(id); }
+            });
+        }
+
+        function downloadCsvTemplate() {
+            const csvContent = "Name;Email;Password;Role\nSiswa Budi;budi@gmail.com;rahasia123;student\nAdmin Rini;rini@gmail.com;admin123;admin";
+            const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a"); const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url); link.setAttribute("download", "template_pengguna.csv"); link.style.visibility = 'hidden';
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function openImportCsvModal() {
+            document.getElementById('modalContent').innerHTML = `
+                <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4"><h3 class="text-2xl font-bold">Import CSV Pengguna</h3><button onclick="closeModal()" class="text-white/50 hover:text-white bg-white/5 rounded-full w-8 h-8 flex justify-center items-center"><i class="bi bi-x-lg"></i></button></div>
+                <div class="mb-4"><p class="text-white/60 text-sm mb-4 leading-relaxed">Pilih file CSV yang sudah diisi sesuai template.<br>Format Header: <b>Name, Email, Password, Role</b> (Gunakan pemisah koma atau titik koma).</p><input type="file" id="csvFileInput" accept=".csv" class="block w-full text-sm text-white/70 file:mr-4 file:py-3 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 transition-all cursor-pointer"></div>
+                <button type="button" onclick="processCsvImport()" class="w-full mt-6 glass glass-hover py-4 rounded-xl font-bold bg-cyan-600/20 text-cyan-300 border border-cyan-500/50 flex justify-center items-center transition-all shadow-lg shadow-cyan-500/20"><i class="bi bi-upload mr-2"></i> Mulai Import Data</button>
+            `;
+            showModal();
+        }
+
+        function processCsvImport() {
+            const fileInput = document.getElementById('csvFileInput');
+            if (!fileInput.files || fileInput.files.length === 0) { Swal.fire('Oops', 'Silakan pilih file CSV terlebih dahulu.', 'warning'); return; }
+
+            const file = fileInput.files[0]; const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result; const rows = text.split('\n');
+                if(rows.length < 2) { Swal.fire('Format Salah', 'File CSV kosong atau tidak memiliki data baris.', 'error'); return; }
+
+                const delimiter = rows[0].indexOf(';') >= 0 ? ';' : ',';
+                const header = rows[0].split(delimiter).map(h => h.trim().toLowerCase());
+                if (header[0] && header[0].charCodeAt(0) === 0xFEFF) { header[0] = header[0].substring(1); }
+
+                if(header[0] !== 'name' || header[1] !== 'email' || header[2] !== 'password' || header[3] !== 'role') {
+                    Swal.fire('Format Header Salah', 'Header CSV harus: Name, Email, Password, Role', 'error'); return;
+                }
+
+                const newUsers = [];
+                for(let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].split(delimiter).map(c => c.trim());
+                    if(cols.length >= 4 && cols[0] && cols[1] && cols[2]) {
+                        newUsers.push({ Name: cols[0], Email: cols[1], Password: cols[2], Role: cols[3].toLowerCase() === 'admin' ? 'admin' : 'student' });
+                    }
+                }
+
+                if(newUsers.length === 0) { Swal.fire('Data Kosong', 'Tidak ada baris data valid yang ditemukan untuk diimport.', 'warning'); return; }
+                
+                saveMultipleUsersToFirestore(newUsers);
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
